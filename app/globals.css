@@ -24,3 +24,43 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Print-optimized report styles */
+@media print {
+  /* White background, black text for print */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Hide anything marked as non-print */
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Make the report panel look like a clean document */
+  .print-report {
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 24px !important;
+    max-width: 100% !important;
+  }
+
+  .print-report pre {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  /* Remove extra page padding/margins from the app shell if needed */
+  main {
+    padding: 0 !important;
+  }
+
+  /* Avoid page breaks inside key elements */
+  .print-report,
+  .print-report pre {
+    page-break-inside: avoid;
+  }
+}
