@@ -11,21 +11,29 @@ export default function Home() {
           One platform for truth-seeking intelligence.
         </p>
 
-        <div className="mt-10 flex justify-center gap-4">
-          <a
-            href="#early-access"
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold"
-          >
-            Start an Investigation
-          </a>
+        <div className="mt-10 flex flex-wrap justify-center gap-4">
+  <a
+    href="/demo"
+    className="px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold"
+  >
+    View Demo Investigation
+  </a>
 
-          <a
-            href="#features"
-            className="px-6 py-3 border border-gray-600 hover:border-gray-400 rounded-lg font-semibold"
-          >
-            Explore the Platform
-          </a>
-        </div>
+  <a
+    href="#features"
+    className="px-6 py-3 border border-gray-600 hover:border-gray-400 rounded-lg font-semibold"
+  >
+    Explore the Platform
+  </a>
+
+  <a
+    href="#early-access"
+    className="px-6 py-3 border border-blue-600 hover:border-blue-400 rounded-lg font-semibold"
+  >
+    Request Early Access
+  </a>
+</div>
+
       </section>
 
       {/* SECTION: WHAT IS INQUISTAI */}
