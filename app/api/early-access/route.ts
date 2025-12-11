@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const FORMSPREE_ENDPOINT = "https://formspree.io/f/manrldra";
+
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -23,13 +25,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const timestamp = new Date().toISOString();
+    // Forward to Formspree
+    const resp = await fetch(FORMSPREE_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        source: "inquistai-early-access",
+      }),
+    });
 
-    // For now, we just log to the server logs.
-    // On Vercel, you’ll see this in the function logs.
-    console.log("Early access signup:", { email, timestamp });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      console.error("Formspree error:", resp.status, text);
+      return NextResponse.json(
+        { error: "Failed to store email. Please try again later." },
+        { status: 502 }
+      );
+    }
 
-    // TODO: later, plug this into Supabase, Vercel KV, or an email service.
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Early access API error:", error);
