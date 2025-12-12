@@ -9,17 +9,15 @@ function isUuid(v: string) {
   );
 }
 
-type ParamsMaybePromise = { id?: string } | Promise<{ id?: string }>;
+// ✅ Next 16 build expects ctx.params to be Promise-like
+type RouteContext = {
+  params: Promise<{ id?: string }>;
+};
 
-async function unwrapParams(p: ParamsMaybePromise): Promise<{ id?: string }> {
-  const anyP = p as any;
-  if (anyP && typeof anyP.then === "function") return await anyP;
-  return p as { id?: string };
-}
-
-export async function GET(_req: Request, ctx: { params: ParamsMaybePromise }) {
+export async function GET(_req: Request, ctx: RouteContext) {
   try {
-    const { id } = await unwrapParams(ctx.params);
+    // Works whether params is a real Promise or a plain object (await just returns it)
+    const { id } = await (ctx as any).params;
     const reportId = (id ?? "").trim();
 
     if (!reportId) {
