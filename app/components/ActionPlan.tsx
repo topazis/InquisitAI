@@ -1,4 +1,11 @@
-function Section({
+export type ActionPlanData = {
+  doNow: string[];
+  doNotDo: string[];
+  verify: string[];
+  escalateWhen: string[];
+};
+
+function BulletSection({
   title,
   items,
   tone,
@@ -26,15 +33,22 @@ function Section({
   );
 }
 
-export function ActionPlan({ plan }: { plan: InvestigationResult["actionPlan"] }) {
+export function ActionPlan({ plan }: { plan: ActionPlanData }) {
   return (
     <div className="rounded-2xl border border-gray-800 bg-black/40 p-5 space-y-4">
-      <h2 className="text-lg font-semibold">What to do right now</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-gray-100 print:text-black">
+          60-Second Action Plan
+        </h2>
+        <span className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-gray-300 print:bg-black print:text-white">
+          Do this first
+        </span>
+      </div>
 
-      <Section title="Do this now" items={plan.doNow} tone="good" />
-      <Section title="Do NOT do this" items={plan.doNotDo} tone="warn" />
-      <Section title="Verify safely" items={plan.verify} tone="neutral" />
-      <Section title="Escalate if" items={plan.escalateWhen} tone="warn" />
+      <BulletSection title="Do this now" items={plan.doNow} tone="good" />
+      <BulletSection title="Do NOT do this" items={plan.doNotDo} tone="warn" />
+      <BulletSection title="Verify safely" items={plan.verify} tone="neutral" />
+      <BulletSection title="Escalate if" items={plan.escalateWhen} tone="warn" />
     </div>
   );
 }
