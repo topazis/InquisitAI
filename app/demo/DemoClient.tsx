@@ -41,7 +41,7 @@ function getPresetLabel(id: PresetId): string {
   return found?.label ?? "Custom scenario";
 }
 
-/** ---- Structured result types (works with your new route.ts output) ---- */
+/** ---- Structured result types ---- */
 type RiskLevel = "low" | "medium" | "high" | "critical";
 
 type ActionPlanData = {
@@ -68,7 +68,14 @@ type InvestigationStructured = {
 function isStructured(x: unknown): x is InvestigationStructured {
   if (!x || typeof x !== "object") return false;
   const o = x as any;
-  return typeof o.summary === "string" && !!o.risk && Array.isArray(o.findings) && !!o.actionPlan;
+  return (
+    typeof o.summary === "string" &&
+    !!o.risk &&
+    typeof o.risk.level === "string" &&
+    typeof o.risk.score === "number" &&
+    Array.isArray(o.findings) &&
+    !!o.actionPlan
+  );
 }
 
 function getFallbackStructured(presetId: PresetId): InvestigationStructured {
@@ -101,8 +108,7 @@ function getFallbackStructured(presetId: PresetId): InvestigationStructured {
 
   if (presetId === "brain10") {
     return {
-      summary:
-        "The “10% brain use” claim is a myth. Neuroscience shows distributed activity across brain regions depending on the task.",
+      summary: "The “10% brain use” claim is a myth. Neuroscience shows distributed activity across brain regions depending on the task.",
       risk: { level: "low", score: 18, rationale: "Common misconception; not a direct scam risk." },
       findings: [
         {
@@ -110,7 +116,11 @@ function getFallbackStructured(presetId: PresetId): InvestigationStructured {
           severity: "low",
           evidence: ["Popularized by media/self-help", "Not supported by modern imaging and lesion studies"],
         },
-        { title: "Brain tissue is metabolically expensive", severity: "medium", evidence: ["Evolution would not maintain mostly inactive tissue"] },
+        {
+          title: "Brain tissue is metabolically expensive",
+          severity: "medium",
+          evidence: ["Evolution would not maintain mostly inactive tissue"],
+        },
       ],
       actionPlan: {
         doNow: ["Treat the claim as false unless a credible source is provided."],
@@ -123,8 +133,7 @@ function getFallbackStructured(presetId: PresetId): InvestigationStructured {
   }
 
   return {
-    summary:
-      "The simulation hypothesis is philosophically interesting, but not scientifically confirmed. No decisive test exists today.",
+    summary: "The simulation hypothesis is philosophically interesting, but not scientifically confirmed. No decisive test exists today.",
     risk: { level: "low", score: 12, rationale: "Conceptual topic; minimal direct harm unless used to justify risky behavior." },
     findings: [
       { title: "Philosophical argument (e.g., Bostrom-style reasoning)", severity: "info", evidence: ["Not a direct empirical claim"] },
@@ -143,18 +152,13 @@ function getFallbackStructured(presetId: PresetId): InvestigationStructured {
 /** ---- Screenshot / redaction tool types ---- */
 type ToolMode = "none" | "redact" | "blur";
 
-type Rect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
+type Rect = { x: number; y: number; w: number; h: number };
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-/** ---- UI mini components (self-contained to avoid type/import build issues) ---- */
+/** ---- UI mini components ---- */
 function Divider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
@@ -182,9 +186,7 @@ function RiskDial({ risk }: { risk: InvestigationStructured["risk"] }) {
     <div className="rounded-2xl border border-gray-800 bg-black/40 p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-100 print:text-black">Risk Dial</h3>
-        <span className={`text-[10px] px-2 py-1 rounded-full text-white ${pill}`}>
-          {level.toUpperCase()}
-        </span>
+        <span className={`text-[10px] px-2 py-1 rounded-full text-white ${pill}`}>{level.toUpperCase()}</span>
       </div>
 
       <div className="space-y-2">
@@ -211,13 +213,7 @@ function ActionPlan({ plan }: { plan: ActionPlanData }) {
     items: string[];
     tone: "good" | "warn" | "neutral";
   }) => {
-    const color =
-      tone === "good"
-        ? "text-emerald-300"
-        : tone === "warn"
-        ? "text-red-300"
-        : "text-blue-300";
-
+    const color = tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-red-300" : "text-blue-300";
     return (
       <div>
         <h4 className={`text-sm font-semibold mb-2 ${color}`}>{title}</h4>
@@ -254,14 +250,9 @@ export default function DemoClient({
   initialPreset?: string;
   initialPrompt?: string;
 }) {
-  /** ---- URL hydration (works for client nav + repeated nav) ---- */
-  const urlPreset: PresetId = useMemo(() => {
-    return isPresetId(initialPreset) ? (initialPreset as PresetId) : "simulation";
-  }, [initialPreset]);
-
-  const urlPrompt: string = useMemo(() => {
-    return typeof initialPrompt === "string" ? initialPrompt : "";
-  }, [initialPrompt]);
+  /** ---- URL hydration ---- */
+  const urlPreset: PresetId = useMemo(() => (isPresetId(initialPreset) ? (initialPreset as PresetId) : "simulation"), [initialPreset]);
+  const urlPrompt: string = useMemo(() => (typeof initialPrompt === "string" ? initialPrompt : ""), [initialPrompt]);
 
   const [selectedPreset, setSelectedPreset] = useState<PresetId>(urlPreset);
   const [prompt, setPrompt] = useState<string>(() => {
@@ -280,6 +271,11 @@ export default function DemoClient({
 
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
+  // Save state
+  const [saving, setSaving] = useState(false);
+  const [savedReportId, setSavedReportId] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
   const lastUrlKeyRef = useRef<string>("");
 
   useEffect(() => {
@@ -297,10 +293,14 @@ export default function DemoClient({
     setGeneratedAt(null);
     setShareMessage(null);
 
+    setSavedReportId(null);
+    setSaveMessage(null);
+    setSaving(false);
+
     lastUrlKeyRef.current = key;
   }, [urlPreset, urlPrompt]);
 
-  /** ---- Screenshot / redaction tools state ---- */
+  /** ---- Screenshot / redaction tools ---- */
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>("none");
   const [blurStrength, setBlurStrength] = useState<number>(18);
@@ -361,12 +361,11 @@ export default function DemoClient({
   }
 
   function getCanvasSizeForImage(img: HTMLImageElement) {
-    // Keep it readable; cap width to 900ish while preserving aspect.
     const maxW = 860;
     const scale = Math.min(1, maxW / img.naturalWidth);
     const w = Math.round(img.naturalWidth * scale);
     const h = Math.round(img.naturalHeight * scale);
-    return { w, h, scale };
+    return { w, h };
   }
 
   function drawCanvas(previewRect?: Rect | null) {
@@ -381,11 +380,9 @@ export default function DemoClient({
     if (canvas.width !== w) canvas.width = w;
     if (canvas.height !== h) canvas.height = h;
 
-    // base image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    // blur regions (simple per-region blur approximation: pixelate)
     const blurRects = [...rectsBlur];
     if (previewRect && toolMode === "blur") blurRects.push(previewRect);
 
@@ -397,25 +394,24 @@ export default function DemoClient({
       if (w2 <= 2 || h2 <= 2) continue;
 
       const block = clamp(Math.round(blurStrength / 2), 4, 40);
-      // pixelate: draw tiny scaled copy back up
       const tmp = document.createElement("canvas");
       tmp.width = Math.max(1, Math.round(w2 / block));
       tmp.height = Math.max(1, Math.round(h2 / block));
       const tctx = tmp.getContext("2d");
       if (!tctx) continue;
+
       tctx.imageSmoothingEnabled = false;
       tctx.drawImage(canvas, x, y, w2, h2, 0, 0, tmp.width, tmp.height);
+
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(tmp, 0, 0, tmp.width, tmp.height, x, y, w2, h2);
       ctx.imageSmoothingEnabled = true;
 
-      // outline
       ctx.strokeStyle = "rgba(56,189,248,0.9)";
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 0.5, y + 0.5, w2 - 1, h2 - 1);
     }
 
-    // redact regions
     const redactRects = [...rectsRedact];
     if (previewRect && toolMode === "redact") redactRects.push(previewRect);
 
@@ -434,7 +430,6 @@ export default function DemoClient({
       ctx.strokeRect(x + 0.5, y + 0.5, w2 - 1, h2 - 1);
     }
 
-    // mode hint (only when tool active)
     if (toolMode !== "none") {
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       ctx.fillRect(10, 10, 160, 28);
@@ -520,8 +515,69 @@ export default function DemoClient({
   async function exportEditedImageDataUrl(): Promise<string | null> {
     const canvas = canvasRef.current;
     if (!canvas) return null;
-    // canvas already has edits applied
     return canvas.toDataURL("image/png");
+  }
+
+  /** ---- Save to Supabase via /api/reports ---- */
+  async function saveReportToSupabase(payload: any): Promise<string | null> {
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return null;
+      if (!data?.id || typeof data.id !== "string") return null;
+      return data.id;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleSaveReport() {
+    if (saving) return;
+
+    const p = (reportPrompt ?? prompt).trim();
+    const r = resultObj ?? resultText;
+    if (!p || !r) return;
+
+    setSaving(true);
+    setSaveMessage(null);
+    setShareMessage(null);
+
+    try {
+      const editedImage = imageDataUrl ? await exportEditedImageDataUrl() : null;
+
+      const payload: any = {
+        preset: selectedPreset, // ✅ matches your route.ts body
+        prompt: p,
+        result: r,
+        risk: resultObj?.risk?.score ?? 0,
+        isPublic: true,
+      };
+
+      if (editedImage) {
+        payload.imageDataUrl = editedImage;
+        payload.imageMeta = {
+          toolMode,
+          blurStrength,
+          redactions: rectsRedact,
+          blurs: rectsBlur,
+        };
+      }
+
+      const id = await saveReportToSupabase(payload);
+      if (!id) {
+        setSaveMessage("Could not save report. Check /api/reports is deployed and returning { id }.");
+      } else {
+        setSavedReportId(id);
+        setSaveMessage("Saved.");
+      }
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
   }
 
   /** ---- Investigation ---- */
@@ -537,15 +593,14 @@ export default function DemoClient({
     setReportPrompt(prompt);
     setGeneratedAt(new Date());
 
+    setSavedReportId(null);
+    setSaveMessage(null);
+
     try {
       const editedImage = imageDataUrl ? await exportEditedImageDataUrl() : null;
 
-      const payload: any = {
-        prompt,
-        presetId: selectedPreset,
-      };
+      const payload: any = { prompt, presetId: selectedPreset };
 
-      // Backward compatible: only include if present
       if (editedImage) {
         payload.imageDataUrl = editedImage;
         payload.imageMeta = {
@@ -567,18 +622,11 @@ export default function DemoClient({
         setResultObj(getFallbackStructured(selectedPreset));
       } else {
         const data = await res.json();
-
-        // Your route.ts may return either { result: ... } or the object itself.
         const candidate = data?.result ?? data;
 
-        if (isStructured(candidate)) {
-          setResultObj(candidate);
-        } else if (typeof candidate === "string") {
-          setResultText(candidate);
-        } else {
-          // unknown shape: show structured fallback (keeps UI consistent)
-          setResultObj(getFallbackStructured(selectedPreset));
-        }
+        if (isStructured(candidate)) setResultObj(candidate);
+        else if (typeof candidate === "string") setResultText(candidate);
+        else setResultObj(getFallbackStructured(selectedPreset));
       }
     } catch {
       setErrorMsg("Network or server error — showing fallback.");
@@ -598,6 +646,23 @@ export default function DemoClient({
     if (!resultObj && !resultText && !reportPrompt) return;
     if (typeof window === "undefined") return;
 
+    setShareMessage(null);
+
+    // Prefer sharing saved report if we have one
+    const id = savedReportId;
+    if (id) {
+      const shareUrl = `${window.location.origin}/r/${encodeURIComponent(id)}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareMessage("Saved link copied.");
+      } else {
+        setShareMessage(shareUrl);
+      }
+      setTimeout(() => setShareMessage(null), 3000);
+      return;
+    }
+
+    // Fallback: prompt-share link
     const basePrompt = (reportPrompt ?? prompt).trim();
     if (!basePrompt) return;
 
@@ -618,7 +683,7 @@ export default function DemoClient({
         setShareMessage("Share dialog opened.");
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
-        setShareMessage("Link copied to clipboard.");
+        setShareMessage("Link copied.");
       } else {
         setShareMessage(shareUrl);
       }
@@ -631,12 +696,14 @@ export default function DemoClient({
 
   const effectivePrompt = reportPrompt ?? prompt;
   const presetLabel = getPresetLabel(selectedPreset);
-  const canShare = !!(resultObj || resultText || reportPrompt);
+
+  const hasResult = !!(resultObj || resultText);
+  const canShare = !!(hasResult || reportPrompt);
+  const canSave = hasResult && !!(reportPrompt ?? prompt).trim();
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-black via-gray-950 to-black text-white px-6 py-10">
       <div className="max-w-5xl mx-auto">
-        {/* Header (hidden in print) */}
         <header className="mb-10 print-hide">
           <a href="/" className="text-sm text-gray-400 hover:text-gray-200 transition-colors">
             ← Back to home
@@ -648,12 +715,12 @@ export default function DemoClient({
         </header>
 
         <div className="grid gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)] items-start">
-          {/* Left: Form (hidden in print) */}
+          {/* Left */}
           <section className="bg-gray-900/70 border border-gray-800/80 rounded-2xl p-6 md:p-7 shadow-xl shadow-black/40 print-hide">
             <h2 className="text-lg font-semibold mb-4">1. Define the investigation</h2>
 
             <form onSubmit={runInvestigation} className="space-y-6">
-              {/* Preset buttons */}
+              {/* Presets */}
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-200">Choose an example scenario</label>
                 <div className="flex flex-wrap gap-2">
@@ -670,6 +737,8 @@ export default function DemoClient({
                         setReportPrompt(null);
                         setGeneratedAt(null);
                         setShareMessage(null);
+                        setSavedReportId(null);
+                        setSaveMessage(null);
                       }}
                       className={`px-3 py-2 rounded-full text-xs md:text-sm border transition
                         ${
@@ -692,6 +761,8 @@ export default function DemoClient({
                       setReportPrompt(null);
                       setGeneratedAt(null);
                       setShareMessage(null);
+                      setSavedReportId(null);
+                      setSaveMessage(null);
                     }}
                     className={`px-3 py-2 rounded-full text-xs md:text-sm border transition ${
                       selectedPreset === "custom"
@@ -704,7 +775,7 @@ export default function DemoClient({
                 </div>
               </div>
 
-              {/* ✅ Prompt textarea (NOW ABOVE screenshot tools) */}
+              {/* Prompt */}
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-200">Investigation prompt</label>
                 <textarea
@@ -718,6 +789,8 @@ export default function DemoClient({
                     setReportPrompt(null);
                     setGeneratedAt(null);
                     setShareMessage(null);
+                    setSavedReportId(null);
+                    setSaveMessage(null);
                   }}
                   rows={6}
                   className="w-full bg-black/70 border border-gray-700 rounded-xl px-3 py-2 text-sm md:text-base outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
@@ -732,10 +805,9 @@ export default function DemoClient({
                 </p>
               </div>
 
-              {/* ✅ Divider text */}
               <Divider label="Optional: add visual evidence" />
 
-              {/* Screenshot tools (NOW BELOW prompt) */}
+              {/* Screenshot tools */}
               <div className="rounded-2xl border border-gray-800 bg-black/40 p-5 space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -821,8 +893,6 @@ export default function DemoClient({
                           setToolMode("none");
                         };
                         reader.readAsDataURL(f);
-
-                        // reset value so re-uploading same file triggers change
                         e.currentTarget.value = "";
                       }}
                     />
@@ -841,9 +911,7 @@ export default function DemoClient({
                     onClick={clearEdits}
                     disabled={!imageDataUrl}
                     className={`px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-                      !imageDataUrl
-                        ? "border-gray-800 text-gray-600 cursor-not-allowed"
-                        : "border-gray-700 text-gray-200 hover:border-gray-500"
+                      !imageDataUrl ? "border-gray-800 text-gray-600 cursor-not-allowed" : "border-gray-700 text-gray-200 hover:border-gray-500"
                     }`}
                   >
                     Clear edits
@@ -854,16 +922,13 @@ export default function DemoClient({
                     onClick={clearImage}
                     disabled={!imageDataUrl}
                     className={`px-3 py-2 rounded-xl text-xs font-semibold border transition ${
-                      !imageDataUrl
-                        ? "border-gray-800 text-gray-600 cursor-not-allowed"
-                        : "border-gray-700 text-gray-200 hover:border-gray-500"
+                      !imageDataUrl ? "border-gray-800 text-gray-600 cursor-not-allowed" : "border-gray-700 text-gray-200 hover:border-gray-500"
                     }`}
                   >
                     Remove image
                   </button>
                 </div>
 
-                {/* Blur strength slider */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs text-gray-400">
                     <span>Blur strength</span>
@@ -884,18 +949,13 @@ export default function DemoClient({
                   </p>
                 </div>
 
-                {/* Canvas preview */}
                 <div className="rounded-xl border border-gray-800 bg-black/50 p-3 overflow-auto">
                   {!imageDataUrl ? (
-                    <div className="text-sm text-gray-500">
-                      No screenshot uploaded yet. Upload one to enable redact/blur tools.
-                    </div>
+                    <div className="text-sm text-gray-500">No screenshot uploaded yet. Upload one to enable redact/blur tools.</div>
                   ) : (
                     <canvas
                       ref={canvasRef}
-                      className={`max-w-full rounded-lg ${
-                        toolMode === "none" ? "cursor-default" : "cursor-crosshair"
-                      }`}
+                      className={`max-w-full rounded-lg ${toolMode === "none" ? "cursor-default" : "cursor-crosshair"}`}
                       onMouseDown={onCanvasMouseDown}
                       onMouseMove={onCanvasMouseMove}
                       onMouseUp={onCanvasMouseUp}
@@ -904,7 +964,6 @@ export default function DemoClient({
                   )}
                 </div>
 
-                {/* Small status line */}
                 {imageDataUrl ? (
                   <div className="text-[11px] text-gray-500">
                     Regions: <span className="text-gray-300">{rectsRedact.length}</span> redactions,{" "}
@@ -913,31 +972,46 @@ export default function DemoClient({
                 ) : null}
               </div>
 
-              {/* Submit + Export + Share buttons */}
+              {/* Actions row */}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="submit"
                   disabled={loading || !prompt.trim()}
-                  className={`px-6 py-3 rounded-xl font-semibold text-sm md:text-base transition
-                    ${
-                      loading || !prompt.trim()
-                        ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30"
-                    }`}
+                  className={`px-6 py-3 rounded-xl font-semibold text-sm md:text-base transition ${
+                    loading || !prompt.trim()
+                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30"
+                  }`}
                 >
                   {loading ? "Running investigation…" : "Run Investigation"}
+                </button>
+
+                {/* ✅ SAVE BUTTON (back) */}
+                <button
+                  type="button"
+                  disabled={!canSave || loading || saving}
+                  onClick={handleSaveReport}
+                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold border transition ${
+                    !canSave || loading || saving
+                      ? "border-gray-700 text-gray-500 cursor-not-allowed"
+                      : savedReportId
+                      ? "border-emerald-400 text-emerald-200 hover:border-emerald-300"
+                      : "border-gray-600 text-gray-200 hover:border-emerald-400 hover:text-emerald-200"
+                  }`}
+                  title={savedReportId ? "Already saved" : "Save this report to Supabase"}
+                >
+                  {saving ? "Saving…" : savedReportId ? "Saved ✓" : "Save report"}
                 </button>
 
                 <button
                   type="button"
                   disabled={(!resultObj && !resultText) || loading}
                   onClick={handleExportPdf}
-                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold border transition
-                    ${
-                      (!resultObj && !resultText) || loading
-                        ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                        : "border-gray-600 text-gray-200 hover:border-blue-400 hover:text-blue-200"
-                    }`}
+                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold border transition ${
+                    (!resultObj && !resultText) || loading
+                      ? "border-gray-700 text-gray-500 cursor-not-allowed"
+                      : "border-gray-600 text-gray-200 hover:border-blue-400 hover:text-blue-200"
+                  }`}
                 >
                   Export as PDF
                 </button>
@@ -946,28 +1020,27 @@ export default function DemoClient({
                   type="button"
                   disabled={!canShare || loading}
                   onClick={handleShareLink}
-                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold border transition
-                    ${
-                      !canShare || loading
-                        ? "border-gray-700 text-gray-500 cursor-not-allowed"
-                        : "border-gray-600 text-gray-200 hover:border-emerald-400 hover:text-emerald-200"
-                    }`}
+                  className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-semibold border transition ${
+                    !canShare || loading
+                      ? "border-gray-700 text-gray-500 cursor-not-allowed"
+                      : "border-gray-600 text-gray-200 hover:border-blue-400 hover:text-blue-200"
+                  }`}
                 >
-                  Share investigation link
+                  {savedReportId ? "Copy saved link" : "Share link"}
                 </button>
 
                 <span className="text-xs md:text-sm text-gray-400">
-                  Share links recreate the same scenario on /demo using preset + prompt.
+                  Save creates <span className="text-gray-300 font-semibold">/r/&lt;id&gt;</span> links.
                 </span>
               </div>
 
-              {shareMessage && <p className="text-xs text-emerald-400 mt-1">{shareMessage}</p>}
+              {saveMessage ? <p className="text-xs text-emerald-400 mt-1">{saveMessage}</p> : null}
+              {shareMessage ? <p className="text-xs text-emerald-400 mt-1">{shareMessage}</p> : null}
             </form>
           </section>
 
-          {/* Right: Report / Result (print-optimized) */}
+          {/* Right */}
           <section className="bg-black/60 border border-gray-800 rounded-2xl p-6 md:p-7 shadow-xl shadow-black/50 print-report space-y-5">
-            {/* Report header */}
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xs font-semibold text-gray-300 print:text-black">InquistAI Investigation Report</div>
@@ -985,7 +1058,6 @@ export default function DemoClient({
               </div>
             </div>
 
-            {/* Input snapshot */}
             {effectivePrompt && (
               <div className="text-xs md:text-sm">
                 <div className="font-semibold mb-1 text-gray-200 print:text-black">Input</div>
@@ -997,19 +1069,16 @@ export default function DemoClient({
 
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-100 print:text-black">Analysis</h2>
-              <span className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-300 print:bg-black print:text-white">
-                Live + fallback
-              </span>
+              <span className="text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-300 print:bg-black print:text-white">Live + fallback</span>
             </div>
 
-            {errorMsg && <p className="text-xs text-amber-400 print:text-[11px]">⚠ {errorMsg}</p>}
+            {errorMsg ? <p className="text-xs text-amber-400 print:text-[11px]">⚠ {errorMsg}</p> : null}
 
             {!resultObj && !resultText && !loading && !errorMsg && (
               <div className="text-gray-500 text-sm md:text-base print:text-black">
                 <p>
                   Choose a scenario or paste your own, then click{" "}
-                  <span className="font-semibold text-gray-200 print:text-black">“Run Investigation”</span>{" "}
-                  to generate a report.
+                  <span className="font-semibold text-gray-200 print:text-black">“Run Investigation”</span> to generate a report.
                 </p>
                 <ul className="mt-4 list-disc list-inside space-y-1">
                   <li>🧠 Reasoning across claims, context, and evidence</li>
@@ -1028,14 +1097,11 @@ export default function DemoClient({
               </div>
             )}
 
-            {/* Structured result */}
             {resultObj && !loading && (
               <div className="space-y-4 animate-[fadeIn_0.35s_ease-out]">
                 <div className="rounded-2xl border border-gray-800 bg-black/40 p-5">
                   <h3 className="text-sm font-semibold text-gray-100 print:text-black mb-2">Summary</h3>
-                  <p className="text-sm md:text-base text-gray-100 print:text-black leading-relaxed whitespace-pre-wrap">
-                    {resultObj.summary}
-                  </p>
+                  <p className="text-sm md:text-base text-gray-100 print:text-black leading-relaxed whitespace-pre-wrap">{resultObj.summary}</p>
                 </div>
 
                 <RiskDial risk={resultObj.risk} />
@@ -1048,15 +1114,13 @@ export default function DemoClient({
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-gray-100">{f.title}</div>
                           {f.severity ? (
-                            <span className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-gray-300">
-                              {f.severity.toUpperCase()}
-                            </span>
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-gray-800 text-gray-300">{f.severity.toUpperCase()}</span>
                           ) : null}
                         </div>
                         {f.evidence?.length ? (
                           <ul className="mt-2 list-disc list-inside text-sm text-gray-300 space-y-1">
-                            {f.evidence.map((e, i) => (
-                              <li key={i}>{e}</li>
+                            {f.evidence.map((ev, i) => (
+                              <li key={i}>{ev}</li>
                             ))}
                           </ul>
                         ) : null}
@@ -1080,7 +1144,6 @@ export default function DemoClient({
               </div>
             )}
 
-            {/* Text result fallback (old format) */}
             {resultText && !loading && (
               <div className="mt-3 animate-[fadeIn_0.35s_ease-out]">
                 <pre className="whitespace-pre-wrap text-sm md:text-base text-gray-100 print:text-black leading-relaxed">
