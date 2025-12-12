@@ -1,14 +1,14 @@
-import Link from "next/link";
 import { headers } from "next/headers";
+import Link from "next/link";
 
 export const runtime = "nodejs";
 
 type ParamsMaybePromise = { id?: string } | Promise<{ id?: string }>;
 
-async function unwrapParams(p: ParamsMaybePromise): Promise<{ id?: string }> {
+async function unwrapParams(p: ParamsMaybePromise | undefined): Promise<{ id?: string }> {
   const anyP = p as any;
   if (anyP && typeof anyP.then === "function") return await anyP;
-  return p as { id?: string };
+  return (p as { id?: string }) ?? {};
 }
 
 async function getOrigin() {
@@ -18,12 +18,8 @@ async function getOrigin() {
   return `${proto}://${host}`;
 }
 
-export default async function ReportPage({
-  params,
-}: {
-  params: ParamsMaybePromise;
-}) {
-  const { id } = await unwrapParams(params);
+export default async function ReportPage(props: { params?: ParamsMaybePromise }) {
+  const { id } = await unwrapParams(props.params);
   const reportId = (id ?? "").trim();
 
   if (!reportId) {
@@ -42,6 +38,7 @@ export default async function ReportPage({
 
   const origin = await getOrigin();
 
+  // IMPORTANT: absolute URL on the server (prevents “Failed to parse URL …”)
   const res = await fetch(`${origin}/api/reports/${encodeURIComponent(reportId)}`, {
     cache: "no-store",
   });
@@ -51,9 +48,7 @@ export default async function ReportPage({
       <main className="min-h-screen bg-black text-white px-6 py-10">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-2xl font-bold">Report not found</h1>
-          <p className="text-gray-400 mt-2">
-            That link may be invalid or the report is private.
-          </p>
+          <p className="text-gray-400 mt-2">That link may be invalid or the report is private.</p>
           <Link className="inline-block mt-6 text-blue-400 underline" href="/demo">
             Back to demo
           </Link>
