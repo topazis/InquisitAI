@@ -1,24 +1,17 @@
+// app/demo/page.tsx
 import DemoClient from "./DemoClient";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
 
-export default function DemoPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  const presetParam = searchParams.preset;
-  const promptParam = searchParams.prompt;
+function firstParam(v: string | string[] | undefined): string | undefined {
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+  return undefined;
+}
 
-  const initialPreset =
-    typeof presetParam === "string" ? presetParam : undefined;
-  const initialPrompt =
-    typeof promptParam === "string" ? promptParam : undefined;
+export default function DemoPage({ searchParams }: { searchParams: SearchParams }) {
+  const initialPreset = firstParam(searchParams.preset);
+  const initialPrompt = firstParam(searchParams.prompt);
 
-  return (
-    <DemoClient
-      initialPreset={initialPreset}
-      initialPrompt={initialPrompt}
-    />
-  );
+  return <DemoClient initialPreset={initialPreset} initialPrompt={initialPrompt} />;
 }

@@ -98,6 +98,8 @@ export default function Home() {
             </div>
             <span className="font-semibold tracking-tight">InquistAI</span>
           </div>
+
+          {/* UPDATED NAV WITH LIBRARY LINK */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-gray-300">
             <a href="#use-cases" className="hover:text-white">
               Use cases
@@ -105,6 +107,12 @@ export default function Home() {
             <a href="#how-it-works" className="hover:text-white">
               How it works
             </a>
+
+            {/* ⭐ NEW LIBRARY LINK */}
+            <a href="/library" className="hover:text-white">
+              Library
+            </a>
+
             <a href="#early-access" className="hover:text-white">
               Early access
             </a>
@@ -288,7 +296,7 @@ export default function Home() {
         </div>
       </section>
 
-    {/* EARLY ACCESS */}
+      {/* EARLY ACCESS */}
       <section id="early-access" className="border-b border-gray-900/70">
         <div className="max-w-3xl mx-auto px-6 py-16 md:py-20 text-center">
           <h2 className="text-2xl md:text-3xl font-semibold mb-3">
@@ -303,7 +311,6 @@ export default function Home() {
           <EarlyAccessForm />
         </div>
       </section>
-
 
       {/* FOOTER */}
       <footer className="py-6 text-center text-[11px] text-gray-500">
